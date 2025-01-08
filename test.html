@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>books-dl Crypto Tests</title>
+  <style>
+    body { font-family: monospace; padding: 16px; }
+    .pass { color: green; }
+    .fail { color: red; font-weight: bold; }
+    pre { margin: 4px 0 12px; background: #f5f5f5; padding: 8px; border-radius: 4px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h2>Crypto Unit Tests</h2>
+  <p>Open DevTools console for details. Results appear below.</p>
+  <div id="results"></div>
+
+<script type="module">
+import { md5 } from './crypto/md5.js';
+import { generateKey } from './crypto/crypto.js';
+
+const results = document.getElementById('results');
+const log = (label, pass, details = '') => {
+  const el = document.createElement('div');
+  el.innerHTML = `<span class="${pass ? 'pass' : 'fail'}">${pass ? '✓' : '✗'} ${label}</span>`;
+  if (details) {
+    const pre = document.createElement('pre');
+    pre.textContent = details;
+    el.appendChild(pre);
+  }
+  results.appendChild(el);
+  console[pass ? 'log' : 'error'](label, pass ? 'PASS' : 'FAIL', details);
+};
+
+// --- MD5 known-answer tests ---
+const MD5_VECTORS = [
+  ['', 'd41d8cd98f00b204e9800998ecf8427e'],
+  ['a', '0cc175b9c0f1b6a831c399e269772661'],
+  ['abc', '900150983cd24fb0d6963f7d28e17f72'],
+  ['message digest', 'f96b697d7cb7938d525a2f31aaf161d0'],
+];
+for (const [input, expected] of MD5_VECTORS) {
+  const got = md5(input);
+  log(`md5("${input}")`, got === expected, got !== expected ? `expected: ${expected}\ngot:      ${got}` : '');
+}
+
+// --- generateKey test vectors from spec/books_dl/utils_spec.rb ---
+const DOWNLOAD_TOKEN = '640c3bESN9MGoc2i5H1puCPRdTcIeIkTMtINtzNTqK9wH4Or4BEgfdoQKpAQGt0+GCmsVZ+ThOPGAwxsN0QJsg2/LAAr2ohlkCKeApmvfBe1yHHVF4r6wmQ/yO3ZAGG0T4dBgH8ye6kqdv8w17n7EbSxtDMO7b+IYEy28L/lzN1a/JAP3yyFhCAV5/8hxS9u5xK4WuKN4b9hZwnHtTv+cF5MBSsC6dqAttpWljmlGH8sqT4I2sJhqlGytyUZVxpz8hQsUZLnN3YKlmsoXQ1vtwyj5l4BcyxDUakJfe/TmYebhBECFjwhHP0euvZuWCEpp/m11sXF+bY4d+oVGs1Hl7EKhor6ixxu7Qmus0hBS1wzFdZoT4nCafhTTnxY8wG/CeZLL0/JMzxbh2wxr6UDnRY/UfGXqTLRX5vuSqGS+QL6KehjlA32wF8ENf9XbV/927N3m0bvYI3k2Sqf4wu3H7B213N+iR4Xn/aiW7NxecZPZN6WXegY1k+7NFBpfI8QYCL8xnjhKCvfofZc8wu3H7B213N6k66b8nVAfhPFMflpyvAyvM9nqag/1bypfI8QYCL8xnUzeImJUZPE5AuY7W/+axYxL319J9VPLPFi7AXg6mfeE8UEn/oo9ZjdRC9/2OoppZnJQ5PyO98k0nUDwPtD49vqs8s5de7psiigx+dAiub4aGMd/iR+JPfZpuCYEmCRCR9fhJ1xEpi2oGeNsTnVpNIgNGA50hBNBNcIwm6a7qiQMdEu90S2QtwgKaNjrYZyiU+4RcDAghuCmoq/R3wi2yXAKaNjrYZyiUiCKRPErf5mE/LP+iJJ8dwx1aoSw62NSsXFJ2sXuaLaMCmjY62GcolFm1PdDP+Vf/b/GyfL9X+WUIo8TusZxqknm65Zb+UglvpODOcniB1XFc6G13inNJhAQvBfBrD+OGUGcPjRQrAT9cKPqdDEnyvw==';
+
+const URL1 = 'https://streaming-ebook.books.com.tw/V1.0/Streaming/book/DD0CB3/952170/OEBPS/content.opf';
+const EXPECTED1 = [101, 87, 67, 247, 38, 70, 65, 140, 139, 83, 14, 193, 211, 197, 38, 225, 48, 35, 79, 108, 47, 47, 191, 253, 44, 205, 93, 130, 226, 96, 203, 82];
+
+const URL2 = 'https://streaming-ebook.books.com.tw/V1.0/Streaming/book/DD0CB3/952170/META-INF/container.xml';
+const EXPECTED2 = [125, 142, 71, 182, 184, 151, 206, 229, 41, 53, 224, 96, 131, 141, 200, 22, 28, 118, 85, 249, 243, 74, 28, 193, 218, 219, 4, 243, 201, 221, 108, 117];
+
+async function runKeyTests() {
+  const key1 = Array.from(await generateKey(URL1, DOWNLOAD_TOKEN));
+  const pass1 = JSON.stringify(key1) === JSON.stringify(EXPECTED1);
+  log('generateKey(content.opf)', pass1,
+    pass1 ? '' : `expected: [${EXPECTED1}]\ngot:      [${key1}]`);
+
+  const key2 = Array.from(await generateKey(URL2, DOWNLOAD_TOKEN));
+  const pass2 = JSON.stringify(key2) === JSON.stringify(EXPECTED2);
+  log('generateKey(container.xml)', pass2,
+    pass2 ? '' : `expected: [${EXPECTED2}]\ngot:      [${key2}]`);
+}
+
+runKeyTests().catch(e => log('ERROR: ' + e.message, false));
+</script>
+</body>
+</html>

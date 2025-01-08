@@ -1,0 +1,91 @@
+* { box-sizing: border-box; }
+
+body {
+  width: 320px;
+  padding: 14px;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  color: #202124;
+  margin: 0;
+}
+
+h2 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+label {
+  display: block;
+  font-size: 12px;
+  color: #5f6368;
+  margin-bottom: 4px;
+}
+
+input {
+  display: block;
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: monospace;
+  margin-bottom: 10px;
+  outline: none;
+}
+
+input:focus {
+  border-color: #1a73e8;
+}
+
+button {
+  width: 100%;
+  padding: 8px;
+  background: #1a73e8;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+button:hover:not(:disabled) { background: #1557b0; }
+button:disabled { background: #bdc1c6; cursor: not-allowed; }
+
+#statusArea { margin-top: 12px; }
+
+#progressBar {
+  height: 6px;
+  background: #e8eaed;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+#progressFill {
+  height: 100%;
+  background: #1a73e8;
+  width: 0%;
+  transition: width 0.25s ease;
+}
+
+#statusMsg {
+  font-size: 11px;
+  color: #5f6368;
+  word-break: break-all;
+}
+
+#errorArea {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: #fce8e6;
+  color: #c5221f;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+#errorArea a { color: #c5221f; }
+
+.hidden { display: none !important; }
