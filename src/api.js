@@ -13,6 +13,15 @@ export async function getCmsToken() {
   });
 }
 
+// Returns all cookies for books.com.tw and its subdomains as a Cookie header string.
+async function getAllCookieString() {
+  return new Promise(resolve => {
+    chrome.cookies.getAll({ domain: 'books.com.tw' }, cookies => {
+      resolve(cookies.map(c => `${c.name}=${c.value}`).join('; '));
+    });
+  });
+}
+
 export async function deviceReg(cmsToken) {
   const body = new URLSearchParams({
     device_id: '2b2475e7-da58-4cfe-aedf-ab4e6463757b',
@@ -48,26 +57,55 @@ export async function getBookDownloadInfo(bookId, cmsToken) {
   return data; // { download_link, download_token, encrypt_type, ... }
 }
 
-export async function fetchFile(url, downloadToken, encryptType) {
+export async function getReadList(offset = 0) {
+  const cookieStr = await getAllCookieString();
+  const body = new URLSearchParams({
+    offset: String(offset),
+    page_size: '40',
+    sort_order: 'ReadTimeDesc',
+    last_updated_time: '1900-01-01T00:00:00+08:00',
+    eplanid: 'all',
+    is_buyout: '',
+    listname: '["all","trial"]',
+    cat: 'all',
+  });
+  const resp = await fetch('https://appapi-ebook.books.com.tw/V1.7/CMSAPIApp/ReadList', {
+    method: 'POST',
+    headers: {
+      'User-Agent': USER_AGENT,
+      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+      Cookie: cookieStr,
+      Origin: 'https://viewer-ebook.books.com.tw',
+      Referer: 'https://viewer-ebook.books.com.tw/',
+    },
+    body: body.toString(),
+  });
+  if (!resp.ok) throw new Error(`ReadList HTTP ${resp.status}`);
+  const data = await resp.json();
+  if (data.error_code) throw new Error(`ReadList: ${data.error_message}`);
+  return data;
+}
+
+export async function fetchFile(url, downloadToken, encryptType, signal) {
   const cleanUrl = url.split('?')[0];
   const ext = '.' + cleanUrl.split('.').pop().toLowerCase();
   const headers = { 'User-Agent': USER_AGENT };
   const encodedToken = encodeURIComponent(downloadToken);
 
   if (NO_AUTH_EXTS.has(ext) || encryptType === 'none') {
-    const resp = await fetch(url, { headers });
+    const resp = await fetch(url, { headers, signal });
     if (!resp.ok) throw new Error(`Fetch ${resp.status}: ${url}`);
     return { bytes: new Uint8Array(await resp.arrayBuffer()), encrypted: false };
   }
 
   if (IMAGE_EXTS.has(ext)) {
     const checksum = imgChecksum();
-    const resp = await fetch(`${url}?checksum=${checksum}&DownloadToken=${encodedToken}`, { headers });
+    const resp = await fetch(`${url}?checksum=${checksum}&DownloadToken=${encodedToken}`, { headers, signal });
     if (!resp.ok) throw new Error(`Fetch ${resp.status}: ${url}`);
     return { bytes: new Uint8Array(await resp.arrayBuffer()), encrypted: false };
   }
 
-  const resp = await fetch(`${url}?DownloadToken=${encodedToken}`, { headers });
+  const resp = await fetch(`${url}?DownloadToken=${encodedToken}`, { headers, signal });
   if (!resp.ok) throw new Error(`Fetch ${resp.status}: ${url}`);
   return { bytes: new Uint8Array(await resp.arrayBuffer()), encrypted: true };
 }

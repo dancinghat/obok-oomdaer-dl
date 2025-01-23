@@ -1,26 +1,39 @@
 import { getCmsToken, deviceReg, getBookDownloadInfo, fetchFile } from './api.js';
 import { parseContainerXml, parseContentOpf } from './parser.js';
 import { buildEpub } from './epub.js';
+import { convertToKepub } from './kepub.js';
 import { generateKey, decodeXor } from './crypto/crypto.js';
 
-const delay = ms => new Promise(r => setTimeout(r, ms));
+function delayWithAbort(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new DOMException('Cancelled', 'AbortError'));
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => {
+      clearTimeout(timer);
+      reject(new DOMException('Cancelled', 'AbortError'));
+    }, { once: true });
+  });
+}
 
 // Port of lib/books_dl/downloader.rb#perform
 // sendProgress: ({ stage, msg, pct? }) => void
-export async function downloadBook(bookId, sendProgress) {
-  sendProgress({ stage: 'auth', msg: '讀取 CmsToken...' });
+// options.delayMs: ms to wait between file fetches (default 1000)
+// options.signal: AbortSignal for cancellation
+export async function downloadBook(bookId, format = 'epub', sendProgress, { delayMs = 1000, signal } = {}) {
+  sendProgress({ stage: 'auth', msg: 'Reading CmsToken...' });
   const cmsToken = await getCmsToken();
   if (!cmsToken) throw new Error('NO_CMS_TOKEN');
 
-  sendProgress({ stage: 'device', msg: '註冊 Fake device...' });
+  sendProgress({ stage: 'device', msg: 'Registering device...' });
   await deviceReg(cmsToken);
 
-  sendProgress({ stage: 'book_info', msg: '取得書籍下載資訊...' });
+  sendProgress({ stage: 'book_info', msg: 'Fetching book info...' });
   const { download_link, download_token, encrypt_type } = await getBookDownloadInfo(bookId, cmsToken);
 
   async function fetchDecrypt(path) {
+    if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
     const url = `${download_link}${path}`;
-    const { bytes, encrypted } = await fetchFile(url, download_token, encrypt_type);
+    const { bytes, encrypted } = await fetchFile(url, download_token, encrypt_type, signal);
     if (!encrypted) return bytes;
     const key = await generateKey(url, download_token);
     return decodeXor(key, bytes);
@@ -35,7 +48,9 @@ export async function downloadBook(bookId, sendProgress) {
   let encryptionBytes = null;
   try {
     encryptionBytes = await fetchDecrypt('META-INF/encryption.xml');
-  } catch (_) {}
+  } catch (e) {
+    if (e.name === 'AbortError') throw e;
+  }
 
   sendProgress({ stage: 'opf', msg: `${rootFilePath}...` });
   const opfBytes = await fetchDecrypt(rootFilePath);
@@ -54,25 +69,33 @@ export async function downloadBook(bookId, sendProgress) {
     sendProgress({ stage: 'file', msg: `${i + 1}/${total} ${filePaths[i]}`, pct: (i + 1) / total });
     const bytes = await fetchDecrypt(filePaths[i]);
     filesMap.set(filePaths[i], bytes);
-    if (i < total - 1) await delay(1000);
+    if (i < total - 1) await delayWithAbort(delayMs, signal);
   }
 
-  sendProgress({ stage: 'packaging', msg: 'EPUB 封裝中...' });
-  const blob = await buildEpub(filesMap);
+  sendProgress({ stage: 'packaging', msg: 'Packaging EPUB...' });
+  const finalMap = format === 'kepub' ? convertToKepub(filesMap, contentOpfXml, rootFilePath) : filesMap;
+  const blob = await buildEpub(finalMap);
 
-  sendProgress({ stage: 'saving', msg: '儲存中...' });
-  const objUrl = URL.createObjectURL(blob);
+  sendProgress({ stage: 'saving', msg: 'Saving...' });
+  // URL.createObjectURL is unavailable in MV3 service workers; use a base64 data URL instead.
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const CHUNK = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += CHUNK)
+    binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + CHUNK, bytes.length)));
+  const dataUrl = `data:application/epub+zip;base64,${btoa(binary)}`;
+  const ext = format === 'kepub' ? '.kepub.epub' : '.epub';
+
   await new Promise((resolve, reject) => {
     chrome.downloads.download(
-      { url: objUrl, filename: `${bookId}_${title}.epub`, saveAs: false },
+      { url: dataUrl, filename: `${bookId}_${title}${ext}`, saveAs: false },
       id => {
-        URL.revokeObjectURL(objUrl);
         if (id === undefined) reject(new Error(chrome.runtime.lastError?.message || 'Download failed'));
         else resolve();
       }
     );
   });
 
-  sendProgress({ stage: 'done', msg: `${bookId} 下載完成！` });
+  sendProgress({ stage: 'done', msg: `${bookId} downloaded!` });
   return title;
 }

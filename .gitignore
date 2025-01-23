@@ -1,0 +1,4 @@
+node_modules/
+dist/
+src/crypto/crypto.real.js
+.claude/

@@ -2,24 +2,13 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8" />
-  <link rel="stylesheet" href="popup.css" />
   <title>books-dl</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-  <h2>books-dl</h2>
-
-  <label for="bookId">Book ID</label>
-  <input id="bookId" type="text" placeholder="E050127971_reflowable_normal" spellcheck="false" />
-
-  <button id="downloadBtn">下載 EPUB</button>
-
-  <div id="statusArea" class="hidden">
-    <div id="progressBar"><div id="progressFill"></div></div>
-    <div id="statusMsg"></div>
-  </div>
-
-  <div id="errorArea" class="hidden"></div>
-
-  <script src="popup.js"></script>
+  <div id="root"></div>
+  <script type="module" src="/src/popup/main.jsx"></script>
 </body>
 </html>
